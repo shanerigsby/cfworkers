@@ -1,5 +1,5 @@
 import * as jose from 'jose';
-import { corsHeaders } from './config.js';
+//import { corsHeaders } from './config.js';
 
 /* body for testing
 {
@@ -17,11 +17,27 @@ import { corsHeaders } from './config.js';
   TODO: using topic registrations or otherwise facilitating seamless messaging
   TODO: cache or otherwise store the access token instead of getting a new one every time
   */
+
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+  'Access-Control-Allow-Headers': '*'
+};
+
+function cors(statusCode) {
+  return {
+    headers: corsHeaders,
+    status: statusCode
+  };
+}
+
+
 export default {
   async fetch(request, env, ctx) {
-	console.log('begin');
+
 	if (request.method === 'OPTIONS') return new Response("OK", { headers: corsHeaders });
-	console.log('got past cors')
+
     const config = JSON.parse(env.PUFF_FCM_CONFIG);
 
     let body;
@@ -32,22 +48,22 @@ export default {
     }
 
     if (!body) {
-      return new Response("Body must be json.", { status: 400 })
+      return new Response("Body must be json.", cors(400));
     }
 
     const accessToken = await getAccessToken(config);
     if (!body.registration) {
-      return new Response("Body must include a registration token.", { status: 400 })
+      return new Response("Body must include a registration token.", cors(400));
     }
 
     switch(body.action) {
       case "relay_message":
         if (!body.message || body.message === null) {
-          return new Response("Body did not include a message.", { status: 400 })
+          return new Response("Body did not include a message.", cors(400));
         }
         let res = await sendMessage(body.registration, body.message, accessToken);
-        console.log(res);
-        return new Response(res + "");
+        console.log('sendMessage result:', res);
+        return new Response(res + "", cors(200));
 
       case "store_registration":
         // TODO: secure username-token storage
@@ -59,10 +75,10 @@ export default {
         
 
         await env.NAMESPACE.put("cat", body.registration);
-        return new Response("donezo");
+        return new Response("donezo", cors(200));
 
       default:
-        return new Response("No valid action in body.", { status: 400 })
+        return new Response("No valid action in body.", cors(400));
     }
   }
 }
@@ -87,7 +103,6 @@ async function getAccessToken(config) {
     .setExpirationTime('1h')
     .sign(await jose.importPKCS8(private_key, 'RS256')); // Sign the JWT with the private key
   
-  console.log('jwt:', jwt);
   const response = await fetch('https://www.googleapis.com/oauth2/v4/token', {
     method: 'POST',
     // for some reason only urlencoded works headers: { 'Authorization': `Bearer ${jwt}` }
@@ -96,6 +111,7 @@ async function getAccessToken(config) {
 });
   
   if (!response.ok) {
+      console.log('FAILED TO RETRIEVE TOKEN:', response);
       throw new Error(`Failed to retrieve token: ${response.statusText}`);
   }
   
