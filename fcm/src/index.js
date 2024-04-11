@@ -2,7 +2,7 @@ import * as jose from 'jose';
 
 /* body for testing
 {
-  "registration": "...",
+  "registration": "",
   "action": "relay_message",
   "message": "this is a test message, ya hear?"
 }
@@ -19,16 +19,29 @@ import * as jose from 'jose';
 
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://puff.pages.dev',
   'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
   'Access-Control-Allow-Headers': '*'
 };
 
+function cors(statusCode) {
+  return {
+    headers: corsHeaders,
+    status: statusCode
+  };
+}
+
+
 export default {
   async fetch(request, env, ctx) {
 
-	  if (request.method === 'OPTIONS') return new Response("OK", { headers: corsHeaders });
-
+    const allowedOrigins = ['https://puff.pages.dev'];
+    const origin = request.headers.get('Origin');
+    console.log('Origin:', origin);
+    if (!origin || !allowedOrigins.includes(origin)) {
+      return new Response('Forbidden', cors(403));
+    }
+    
     const config = JSON.parse(env.PUFF_FCM_CONFIG);
 
     let body;
@@ -39,22 +52,22 @@ export default {
     }
 
     if (!body) {
-      return new Response("Body must be json.", { status: 400 });
+      return new Response("Body must be json.", cors(400));
     }
 
     const accessToken = await getAccessToken(config);
     if (!body.registration) {
-      return new Response("Body must include a registration token.", { status: 400 });
+      return new Response("Body must include a registration token.", cors(400));
     }
 
     switch(body.action) {
       case "relay_message":
         if (!body.message || body.message === null) {
-          return new Response("Body did not include a message.", { status: 400 });
+          return new Response("Body did not include a message.", cors(400));
         }
         let res = await sendMessage(body.registration, body.message, accessToken);
         console.log('sendMessage result:', res);
-        return new Response(res + "", { status: 200 });
+        return new Response(res + "", cors(200));
 
       case "store_registration":
         // TODO: secure username-token storage
@@ -66,10 +79,10 @@ export default {
         
 
         await env.NAMESPACE.put("cat", body.registration);
-        return new Response("donezo", { status: 200 });
+        return new Response("donezo", cors(200));
 
       default:
-        return new Response("No valid action in body.", { status: 400 });
+        return new Response("No valid action in body.", cors(400));
     }
   }
 }
