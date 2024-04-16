@@ -55,7 +55,6 @@ export default {
       return new Response("Body must be json.", cors(400));
     }
 
-    const accessToken = await getAccessToken(config);
     if (!body.registration) {
       return new Response("Body must include a registration token.", cors(400));
     }
@@ -64,6 +63,10 @@ export default {
       case "relay_message":
         if (!body.message || body.message === null) {
           return new Response("Body did not include a message.", cors(400));
+        }
+        const accessToken = await getAccessToken(config);
+        if (!accessToken) {
+            return new Response("Internal server error", cors(500));
         }
         let res = await sendMessage(body.registration, body.message, accessToken);
         console.log('sendMessage result:', res);
